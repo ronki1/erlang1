@@ -37,19 +37,19 @@ exp_to_bdd(BoolFunc, Ordering)->
   Vars = remove_dups(findVars([],BoolFunc)),
   VarPerms = perms(Vars),
   %io:fwrite(lists:flatten(io_lib:format("~p \n\n", [VarPerms]))),
-  OptimalTupel = getOptimal(BoolFunc,VarPerms,Ordering,-1,{}),
-  element(1,OptimalTupel).
+  OptimalTuple = getOptimal(BoolFunc,VarPerms,Ordering,-1,{}),
+  element(1,OptimalTuple).
 
 %gets the optimal tree according to the Ordering Var
-getOptimal(_Exp,[],_Ordering,_CurrentMinOrdering,OptimalTupel)->OptimalTupel;
-getOptimal(Exp,Perms,Ordering,CurrentMinOrdering,OptimalTupel)->%on first permutation CurrentMinOrdering should be negative
-  CurrentTupel = getTreeAndParams(Exp,hd(Perms)),
-  CurrentOrderingVal = maps:get(Ordering,element(2,CurrentTupel)),
-  %io:fwrite(lists:flatten(io_lib:format("~p \n\n", [CurrentTupel]))), %prints all possible trees
+getOptimal(_Exp,[],_Ordering,_CurrentMinOrdering,OptimalTuple)->OptimalTuple;
+getOptimal(Exp,Perms,Ordering,CurrentMinOrdering,OptimalTuple)->%on first permutation CurrentMinOrdering should be negative
+  CurrentTuple = getTreeAndParams(Exp,hd(Perms)),
+  CurrentOrderingVal = maps:get(Ordering,element(2,CurrentTuple)),
+  %io:fwrite(lists:flatten(io_lib:format("~p \n\n", [CurrentTuple]))), %prints all possible trees
   if
-    CurrentMinOrdering<0-> getOptimal(Exp,tl(Perms),Ordering,CurrentOrderingVal,CurrentTupel);
-    CurrentOrderingVal<CurrentMinOrdering-> getOptimal(Exp,tl(Perms),Ordering,CurrentOrderingVal,CurrentTupel);
-    true -> getOptimal(Exp,tl(Perms),Ordering,CurrentMinOrdering,OptimalTupel)
+    CurrentMinOrdering<0-> getOptimal(Exp,tl(Perms),Ordering,CurrentOrderingVal,CurrentTuple);
+    CurrentOrderingVal<CurrentMinOrdering-> getOptimal(Exp,tl(Perms),Ordering,CurrentOrderingVal,CurrentTuple);
+    true -> getOptimal(Exp,tl(Perms),Ordering,CurrentMinOrdering,OptimalTuple)
   end.
 
 %returns a tuple with tree representation and parameter map
