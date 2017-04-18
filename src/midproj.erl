@@ -34,11 +34,17 @@ treeSearch(Tree,Map) ->
 exp_to_bdd(BoolFunc, Ordering)->
   %A = {'or', { {'or', { { 'and', { {'and', {{'not', x1},{'not', x2}} }, {'not', x3}} } , {'and',{x1,x2}} } } , {'and', {x2,x3}} }} ,
   %A = {'or',{ {'or',{ {'and',{ x1 , {'not', x2} }} , {'and',{ x2 , x3 }} }} , x3 }},
-  Vars = remove_dups(findVars([],BoolFunc)),
+  A1={'and',{{'and',{{'not',x2},x1}},x3}},
+  B={'and' , { x1, {'and' ,{{'not', x3},{'or', {{'not', x4},x2}}}}}},
+  C={'not',{'and',{x4,x1}}},
+  Tot = {'or', {C, {'or', {A1,B}}}},
+  StartTimeStamp = get_timestamp(),
+  Vars = remove_dups(findVars([],Tot)),
   VarPerms = perms(Vars),
   %io:fwrite(lists:flatten(io_lib:format("~p \n\n", [VarPerms]))),
-  OptimalTuple = getOptimal(BoolFunc,VarPerms,Ordering,-1,{}),
-  element(1,OptimalTuple).
+  OptimalTuple = getOptimal(Tot,VarPerms,Ordering,-1,{}),
+  io:fwrite(lists:flatten(io_lib:format("~p \n\n", [element(1,OptimalTuple)]))),
+  io:fwrite(lists:flatten(io_lib:format("Execution Time (millis) ~p \n\n", [get_timestamp()-StartTimeStamp]))).
 
 %gets the optimal tree according to the Ordering Var
 getOptimal(_Exp,[],_Ordering,_CurrentMinOrdering,OptimalTuple)->OptimalTuple;
@@ -55,7 +61,7 @@ getOptimal(Exp,Perms,Ordering,CurrentMinOrdering,OptimalTuple)->%on first permut
 %returns a tuple with tree representation and parameter map
 getTreeAndParams(Exp, Vars) ->
   NewTree = buildInitialTree(Exp,#{},Vars),
-  {NewTree,getTreeParams(NewTree,#{height=>0,numOfNodes=>0,numOfLeafs=>0},0)}.
+  {NewTree,getTreeParams(NewTree,#{treeHeight=>0,numOfNodes=>0,numOfLeafs=>0},0)}.
 
 %%test() ->
 %%  %A = {'or',{ {'or',{ {'and',{ x1 , {'not', x2} }} , {'and',{ x2 , x3 }} }} , x3 }},
@@ -64,7 +70,7 @@ getTreeAndParams(Exp, Vars) ->
 %%  Vars = remove_dups(findVars([],A)),
 %%  %Map = listToMap(Vars,#{}),Map,
 %%  Tree = buildInitialTree(A,#{},Vars),
-%%  Params = #{height=>0,numOfNodes=>0,numOfLeafs=>0},%height of only root is 0
+%%  Params = #{treeHeight=>0,numOfNodes=>0,numOfLeafs=>0},%treeHeight of only root is 0
 %%  getTreeParams(Tree,Params,0).
 
 buildInitialTree(Exp, Map, [])->{solveExp(Exp,Map)}; %builds the tree and minimizes it
@@ -86,7 +92,7 @@ getTreeParams(Tree,Params,Depth) when Tree=:={false} ->
   Inc1 = fun(V) -> V + 1 end,
   DepthFunc = fun(V) -> max(Depth,V) end,
   NewParams2 = funcOnMapElem(numOfLeafs,Inc1,Params),
-  funcOnMapElem(height,DepthFunc,NewParams2);
+  funcOnMapElem(treeHeight,DepthFunc,NewParams2);
 %when reached a node
 getTreeParams(Tree,Params,Depth)->
   Inc1 = fun(V) -> V + 1 end,
@@ -122,3 +128,7 @@ findVars(List,{A,B}) when not is_tuple(A) and is_tuple(B)-> List++[{A,false}]++f
 findVars(List,{A,B}) when is_tuple(A) and not is_tuple(B)-> List++findVars(List,A)++[{B,false}];
 findVars(_,{A,B}) -> [{A,false},{B,false}];
 findVars(_,A)->[{A,false}].
+
+get_timestamp() ->
+  {Mega, Sec, Micro} = os:timestamp(),
+  (Mega*1000000 + Sec)*1000 + round(Micro/1000).
