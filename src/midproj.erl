@@ -1,6 +1,5 @@
 %%%-------------------------------------------------------------------
-%%% @author ron
-%%% @copyright (C) 2017, <COMPANY>
+%%% @author ron kotlarsky
 %%% @doc
 %%%
 %%% @end
@@ -13,13 +12,16 @@
 -export([exp_to_bdd/2]).
 -export([solve_bdd/2]).
 
+
+%%requested function, receives a BDD tree and a list of values for every Boolean variable that’s
+%%used in the Boolean function and returns the result of that function, according to the given BDD tree.
 solve_bdd(BddTree, List)->
   Map = listToMap(List,#{}),
   treeSearch(BddTree,Map).
 
 %Searches the tree according to the values given in map
-treeSearch({true},_Map)->true;
-treeSearch({false},_Map)->false;
+treeSearch({true},_Map)->true; %case reached a leaf
+treeSearch({false},_Map)->false;%case reached a leaf
 treeSearch(Tree,Map) ->
   CurrentAtom = element(1,Tree),
   AtomVal = maps:get(CurrentAtom,Map),
@@ -27,35 +29,36 @@ treeSearch(Tree,Map) ->
   RightChild = element(3,Tree),
   if
     AtomVal -> treeSearch(RightChild,Map);%if to go right
-    true -> treeSearch(LeftChild,Map)
+    true -> treeSearch(LeftChild,Map) %if to go left
   end
 .
 
 exp_to_bdd(BoolFunc, Ordering)->
   %A = {'or', { {'or', { { 'and', { {'and', {{'not', x1},{'not', x2}} }, {'not', x3}} } , {'and',{x1,x2}} } } , {'and', {x2,x3}} }} ,
   %A = {'or',{ {'or',{ {'and',{ x1 , {'not', x2} }} , {'and',{ x2 , x3 }} }} , x3 }},
-  A1={'and',{{'and',{{'not',x2},x1}},x3}},
-  B={'and' , { x1, {'and' ,{{'not', x3},{'or', {{'not', x4},x2}}}}}},
-  C={'not',{'and',{x4,x1}}},
-  Tot = {'or', {C, {'or', {A1,B}}}},
+  %A1={'and',{{'and',{{'not',x2},x1}},x3}},
+  %B={'not',{'and' , { x1, {'and' ,{{'not', x3},{'or', {{'not', x4},x2}}}}}}},
+  %C={'not',{'and',{x4,x1}}},
+  %Tot = {'or', {C, {'or', {A1,B}}}},
   StartTimeStamp = get_timestamp(),
-  Vars = remove_dups(findVars([],Tot)),
+  Vars = remove_dups(findVars([],BoolFunc)),
   VarPerms = perms(Vars),
   %io:fwrite(lists:flatten(io_lib:format("~p \n\n", [VarPerms]))),
-  OptimalTuple = getOptimal(Tot,VarPerms,Ordering,-1,{}),
-  io:fwrite(lists:flatten(io_lib:format("~p \n\n", [element(1,OptimalTuple)]))),
-  io:fwrite(lists:flatten(io_lib:format("Execution Time (millis) ~p \n\n", [get_timestamp()-StartTimeStamp]))).
+  OptimalTuple = getOptimal(BoolFunc,VarPerms,Ordering,-1,{}),
+  %io:fwrite(lists:flatten(io_lib:format("~p \n\n", [element(1,OptimalTuple)]))),
+  io:fwrite(lists:flatten(io_lib:format("Execution Time (millis) ~p \n\n", [get_timestamp()-StartTimeStamp]))),
+  element(1,OptimalTuple).
 
 %gets the optimal tree according to the Ordering Var
-getOptimal(_Exp,[],_Ordering,_CurrentMinOrdering,OptimalTuple)->OptimalTuple;
+getOptimal(_Exp,[],_Ordering,_CurrentMinOrdering,OptimalTuple)->OptimalTuple;%end of permutations reached -> return the result
 getOptimal(Exp,Perms,Ordering,CurrentMinOrdering,OptimalTuple)->%on first permutation CurrentMinOrdering should be negative
   CurrentTuple = getTreeAndParams(Exp,hd(Perms)),
   CurrentOrderingVal = maps:get(Ordering,element(2,CurrentTuple)),
   %io:fwrite(lists:flatten(io_lib:format("~p \n\n", [CurrentTuple]))), %prints all possible trees
   if
-    CurrentMinOrdering<0-> getOptimal(Exp,tl(Perms),Ordering,CurrentOrderingVal,CurrentTuple);
-    CurrentOrderingVal<CurrentMinOrdering-> getOptimal(Exp,tl(Perms),Ordering,CurrentOrderingVal,CurrentTuple);
-    true -> getOptimal(Exp,tl(Perms),Ordering,CurrentMinOrdering,OptimalTuple)
+    CurrentMinOrdering<0-> getOptimal(Exp,tl(Perms),Ordering,CurrentOrderingVal,CurrentTuple); %if first iteration
+    CurrentOrderingVal<CurrentMinOrdering-> getOptimal(Exp,tl(Perms),Ordering,CurrentOrderingVal,CurrentTuple);%if found optimal
+    true -> getOptimal(Exp,tl(Perms),Ordering,CurrentMinOrdering,OptimalTuple) %if not found optimal
   end.
 
 %returns a tuple with tree representation and parameter map
@@ -63,29 +66,18 @@ getTreeAndParams(Exp, Vars) ->
   NewTree = buildInitialTree(Exp,#{},Vars),
   {NewTree,getTreeParams(NewTree,#{treeHeight=>0,numOfNodes=>0,numOfLeafs=>0},0)}.
 
-%%test() ->
-%%  %A = {'or',{ {'or',{ {'and',{ x1 , {'not', x2} }} , {'and',{ x2 , x3 }} }} , x3 }},
-%%  A = {'or', { {'or', { { 'and', { {'and', {{'not', x1},{'not', x2}} }, {'not', x3}} } , {'and',{x1,x2}} } } , {'and', {x2,x3}} }} ,
-%%  %A = {'and', {x1,{'not',x1}}},
-%%  Vars = remove_dups(findVars([],A)),
-%%  %Map = listToMap(Vars,#{}),Map,
-%%  Tree = buildInitialTree(A,#{},Vars),
-%%  Params = #{treeHeight=>0,numOfNodes=>0,numOfLeafs=>0},%treeHeight of only root is 0
-%%  getTreeParams(Tree,Params,0).
-
 buildInitialTree(Exp, Map, [])->{solveExp(Exp,Map)}; %builds the tree and minimizes it
 buildInitialTree(Exp, Map, [H|T]) ->
   Left =  buildInitialTree(Exp, maps:put(element(1,H),false,Map),T),
   Right = buildInitialTree(Exp, maps:put(element(1,H),true,Map),T),
 if
-    Right=:= Left->Right;
-    true-> {element(1,H),Left,Right}
+    Right=:= Left->Right; %if it is possible to reduce order -> change current node with one of its children
+    true-> {element(1,H),Left,Right} %if impossible to reduce order -> add children to current node
 end.
 
 perms([]) -> [[]]; %finds all permutations of list
 perms(L)  -> [[H|T] || H <- L, T <- perms(L--[H])].
 
-%TODO change if x1,x2,x3 are not shown
 %Traversal of the tree while updating Tree Parameters
 getTreeParams(Tree,Params,Depth) when Tree=:={true} -> getTreeParams({false},Params,Depth);%when reached a leaf
 getTreeParams(Tree,Params,Depth) when Tree=:={false} ->
@@ -107,9 +99,11 @@ funcOnMapElem(Key,Func,Map) ->
   NewVal = Func(OldVal),
   maps:update(Key,NewVal,Map).
 
-solveExp({'or',{L,R}},VarMap)->solveExp(L,VarMap) or solveExp(R,VarMap);%soelves the expression according to the values supplied in VarMap
+
+%solves the expression according to the values supplied in VarMap
+solveExp({'or',{L,R}},VarMap)->solveExp(L,VarMap) or solveExp(R,VarMap);
 solveExp({'and',{L,R}},VarMap)->solveExp(L,VarMap) and solveExp(R,VarMap);
-solveExp({'not',R},VarMap)->not solveExp(R,VarMap);
+solveExp({'not',R},VarMap)->not solveExp(R,VarMap);%unitary operator
 solveExp(Val,VarMap) -> maps:get(Val, VarMap).
 
 
@@ -123,12 +117,13 @@ findVars(List,{'or',Exp}) -> findVars(List,Exp); %finds vars in expression
 findVars(List,{'and',Exp}) -> findVars(List,Exp);
 findVars(List,{'not',Exp}) when is_tuple(Exp) -> findVars(List,Exp);
 findVars(_,{'not',Exp}) -> [{Exp,false}];
-findVars(List,{A,B}) when is_tuple(A) and is_tuple(B)-> List++findVars(List,A)++findVars(List,B);
-findVars(List,{A,B}) when not is_tuple(A) and is_tuple(B)-> List++[{A,false}]++findVars(List,B);
-findVars(List,{A,B}) when is_tuple(A) and not is_tuple(B)-> List++findVars(List,A)++[{B,false}];
+findVars(List,{A,B}) when is_tuple(A) and is_tuple(B)-> List++findVars(List,A)++findVars(List,B);%when left and right are tuples
+findVars(List,{A,B}) when not is_tuple(A) and is_tuple(B)-> List++[{A,false}]++findVars(List,B);%when only right val is tuple
+findVars(List,{A,B}) when is_tuple(A) and not is_tuple(B)-> List++findVars(List,A)++[{B,false}];%when only left val is tuple
 findVars(_,{A,B}) -> [{A,false},{B,false}];
 findVars(_,A)->[{A,false}].
 
+%get the current timestamp in milliseconds
 get_timestamp() ->
   {Mega, Sec, Micro} = os:timestamp(),
   (Mega*1000000 + Sec)*1000 + round(Micro/1000).
