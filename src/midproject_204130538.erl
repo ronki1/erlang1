@@ -5,7 +5,7 @@
 %%% @end
 %%% Created : 10. Apr 2017 11:54
 %%%-------------------------------------------------------------------
--module(midproj).
+-module(midproject_204130538).
 -author("ron").
 
 %% API
@@ -17,7 +17,7 @@
 %%used in the Boolean function and returns the result of that function, according to the given BDD tree.
 solve_bdd(BddTree, List)->
   Map = listToMap(List,#{}),
-  treeSearch(BddTree,Map).
+  boolAtomToNum(treeSearch(BddTree,Map)).
 
 %Searches the tree according to the values given in map
 treeSearch({true},_Map)->true; %case reached a leaf
@@ -34,18 +34,10 @@ treeSearch(Tree,Map) ->
 .
 
 exp_to_bdd(BoolFunc, Ordering)->
-  %A = {'or', { {'or', { { 'and', { {'and', {{'not', x1},{'not', x2}} }, {'not', x3}} } , {'and',{x1,x2}} } } , {'and', {x2,x3}} }} ,
-  %A = {'or',{ {'or',{ {'and',{ x1 , {'not', x2} }} , {'and',{ x2 , x3 }} }} , x3 }},
-  %A1={'and',{{'and',{{'not',x2},x1}},x3}},
-  %B={'not',{'and' , { x1, {'and' ,{{'not', x3},{'or', {{'not', x4},x2}}}}}}},
-  %C={'not',{'and',{x4,x1}}},
-  %Tot = {'or', {C, {'or', {A1,B}}}},
   StartTimeStamp = get_timestamp(),
   Vars = remove_dups(findVars([],BoolFunc)),
   VarPerms = perms(Vars),
-  %io:fwrite(lists:flatten(io_lib:format("~p \n\n", [VarPerms]))),
   OptimalTuple = getOptimal(BoolFunc,VarPerms,Ordering,-1,{}),
-  %io:fwrite(lists:flatten(io_lib:format("~p \n\n", [element(1,OptimalTuple)]))),
   io:fwrite(lists:flatten(io_lib:format("Execution Time (millis) ~p \n\n", [get_timestamp()-StartTimeStamp]))),
   element(1,OptimalTuple).
 
@@ -54,7 +46,6 @@ getOptimal(_Exp,[],_Ordering,_CurrentMinOrdering,OptimalTuple)->OptimalTuple;%en
 getOptimal(Exp,Perms,Ordering,CurrentMinOrdering,OptimalTuple)->%on first permutation CurrentMinOrdering should be negative
   CurrentTuple = getTreeAndParams(Exp,hd(Perms)),
   CurrentOrderingVal = maps:get(Ordering,element(2,CurrentTuple)),
-  %io:fwrite(lists:flatten(io_lib:format("~p \n\n", [CurrentTuple]))), %prints all possible trees
   if
     CurrentMinOrdering<0-> getOptimal(Exp,tl(Perms),Ordering,CurrentOrderingVal,CurrentTuple); %if first iteration
     CurrentOrderingVal<CurrentMinOrdering-> getOptimal(Exp,tl(Perms),Ordering,CurrentOrderingVal,CurrentTuple);%if found optimal
@@ -84,7 +75,8 @@ getTreeParams(Tree,Params,Depth) when Tree=:={false} ->
   Inc1 = fun(V) -> V + 1 end,
   DepthFunc = fun(V) -> max(Depth,V) end,
   NewParams2 = funcOnMapElem(numOfLeafs,Inc1,Params),
-  funcOnMapElem(treeHeight,DepthFunc,NewParams2);
+  NewParams3 = funcOnMapElem(numOfNodes,Inc1,NewParams2),
+  funcOnMapElem(treeHeight,DepthFunc,NewParams3); %updates tree height if current depth is larger than current tree height
 %when reached a node
 getTreeParams(Tree,Params,Depth)->
   Inc1 = fun(V) -> V + 1 end,
@@ -108,7 +100,13 @@ solveExp(Val,VarMap) -> maps:get(Val, VarMap).
 
 
 listToMap([],Map)->Map;%generates a map with atoms representing boolean operators, and their values
-listToMap(List,Map)->listToMap(tl(List),maps:put(element(1,hd(List)), element(2,hd(List)), Map)).
+listToMap(List,Map)->listToMap(tl(List),maps:put(element(1,hd(List)), boolNumToAtom(element(2,hd(List))), Map)).
+
+boolNumToAtom(0) -> false;
+boolNumToAtom(_) -> true.
+
+boolAtomToNum(true) -> 1;
+boolAtomToNum(_)->0.
 
 remove_dups([])    -> []; %remove duplicates in list
 remove_dups([H|T]) -> [H | [X || X <- remove_dups(T), X /= H]].
