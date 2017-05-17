@@ -27,8 +27,9 @@ ringA(N,M) ->
     masterMessagePasser(NextPID,M,BuidStart)
   end
 .
-masterMessagePasser(_,0,StartTime)->
-  io:format("Time Took For Build and Passing (Micros): ~p~n", [get_timestamp() - StartTime]);
+masterMessagePasser(NextPID,0,StartTime)->
+  io:format("Time Took For Build and Passing (Micros): ~p~n", [get_timestamp() - StartTime]),
+  NextPID!{self(),exit};
 masterMessagePasser(NextPID,M,StartTime) ->
   NextPID!{self(),message},
   receive
@@ -50,9 +51,11 @@ processA(NextProcessesNum,HomeProcess) ->
 
 retransmitter(NextProcess) ->
   receive
-    {_Sender,Message}->
-      NextProcess ! {self(),Message},
+    {_Sender,message}->
+      NextProcess ! {self(),message},
       retransmitter(NextProcess);
+    {_Sender,exit} ->
+      NextProcess!{self(),exit};
     _ ->
       retransmitter(NextProcess)
   end.
@@ -83,7 +86,7 @@ mesh(N,M,C) ->
 .
 
 updateProcessesWithMap(ProcessMap) ->
-  Fun = fun(K,V,AccIn) -> V!{self(),processMapUpdate,ProcessMap} end,
+  Fun = fun(K,V,_AccIn) -> V!{self(),processMapUpdate,ProcessMap} end,
   maps:fold(Fun,0,ProcessMap)
 .
 
@@ -93,8 +96,11 @@ createMesh(C,N,C,ProcessMap,M,StartTime)-> %case master
 createMesh(NumLeft,N,C,ProcessMap,M,StartTime)->%case transmitter
   createMesh(NumLeft-1,N,C,ProcessMap#{NumLeft=>spawn(fun() -> meshTransmitterProcess(NumLeft,N,M,C,#{},#{}) end)},M,StartTime).
 
-meshMasterProcess(_,_,_,_,MessageMap,ACKNum,StartTime,ACKNum) ->
-  io:format("Time Took For Creating and Passing (Micros): ~p~n", [get_timestamp() - StartTime]);
+meshMasterProcess(N,M,C,ProcessMap,_MessageMap,ACKNum,StartTime,ACKNum) ->
+  io:format("Time Took For Creating and Passing (Micros): ~p~n", [get_timestamp() - StartTime]),
+  sendToDirsExcept(C,N,ProcessMap,{exit},none)
+;
+
 meshMasterProcess(N,M,C,ProcessMap,MessageMap,ACKNum,StartTime,ACKReceived) ->
   receive
     {_Sender,processMapUpdate,Map} ->
@@ -130,16 +136,14 @@ meshTransmitterProcess(MyNum,N,M,C,ProcessMap,MessageMap) ->
         false -> %if message hasnt already been received
           sendToDirsExcept(MyNum,N,ProcessMap,{newMessage,MessageNum},none),
           sendToDirsExcept(MyNum,N,ProcessMap,{messageReceived,MessageNum,MyNum},none),
-%%          sendUpwards(MyNum,N,ProcessMap,{messageReceived,MessageNum,MyNum}),
-%%          sendDownwards(MyNum,N,ProcessMap,{messageReceived,MessageNum,MyNum}),
-%%          sendRight(MyNum,N,ProcessMap,{messageReceived,MessageNum,MyNum}),
-%%          sendLeft(MyNum,N,ProcessMap,{messageReceived,MessageNum,MyNum}),
 
           meshTransmitterProcess(MyNum,N,M,C,ProcessMap,MessageMap#{{newMessage,MessageNum}=>a});
         _ ->
           meshTransmitterProcess(MyNum,N,M,C,ProcessMap,MessageMap)
       end;
-    _ -> %new message messages should not be handled
+    {DIR,{exit}}->
+          sendToDirsExcept(MyNum,N,ProcessMap,{exit},none);
+    _ -> %messages that should not be handled
       meshTransmitterProcess(MyNum,N,M,C,ProcessMap,MessageMap)
 end.
 
