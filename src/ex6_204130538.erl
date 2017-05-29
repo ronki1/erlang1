@@ -31,9 +31,14 @@ buildGraph(G,[H|T]) ->
   buildGraph(G,T)%recurrsive call
 .
 
+songGen(_G,Start,Start) -> %return shortest path in graph
+  [Start];
 songGen(G,Start,End) -> %return shortest path in graph
-  Path = digraph:get_short_path(G, digraph:add_vertex(G,{Start,song}), digraph:add_vertex(G,{End,song})),
-  lists:reverse(filterPath([],Path))
+  Path = digraph:get_short_path(G, {Start, song}, {End,song}),
+  case Path of
+    false -> notFound;
+    _ -> lists:reverse(filterPath([],Path))
+  end
 .
 filterPath(NewList,[])->%finished going through list
   NewList;
