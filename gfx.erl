@@ -55,7 +55,9 @@ start() ->
   wxWindow:connect(Frame, char_hook, [{callback,MoveFunc}]),
   wxFrame:show(Frame),
   DotPid = spawn(fun()->  dotMover(50,50) end),
+  register(dotPid,DotPid),
   io:fwrite("spawned at pid :~p",[DotPid]),
+  spawn(fun() -> start_udp(7777) end),
   loop(Frame,Panel,DotPid). % pass the needed parameters here
 
 
@@ -116,6 +118,22 @@ dotMover(X,Y)->
   receive
     {Dx,Dy}->
       main_process!{moveDot,Dx+X,Dy+Y},
-      dotMover(X+Dx,Y+Dy)
+      dotMover(X+Dx,Y+Dy);
+    A->io:fwrite("dotMover received: ~p \n ",[A])
   end
 .
+
+start_udp(Port) ->
+  gen_udp:open(Port,[binary,{active,true}]),
+  loop_udp().
+
+loop_udp() ->
+  receive
+    {_,_,_,_,<<X:32/signed-integer,Y:32/signed-integer>>} ->
+      io:format("received: ~p,~p~n", [X/50,Y/50]),
+      dotPid!{round(X/50),round(-Y/50)},
+      loop_udp();
+    M ->
+      io:format("received: ~p~n", [M]),
+      loop_udp()
+  end.
