@@ -1,36 +1,30 @@
 -module(food).
 
 -behaviour(gen_server).
--export([start/0]).
+-export([start/1]).
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
   terminate/2, code_change/3,dummy/3]).
 -compile(export_all).
 -define(SERVER, ?MODULE).
 
-start() -> gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+start(Args) -> gen_server:start_link(?MODULE, Args, []).
 stop()  -> gen_server:call(?MODULE, stop).
 
-new_account(Who)      -> gen_server:call(?MODULE, {new, Who}).
-deposit(Who, Amount)  -> gen_server:call(?MODULE, {add, Who, Amount}).
-withdraw(Who, Amount) -> gen_server:call(?MODULE, {remove, Who, Amount}).
-
 init([]) ->
-  ETS = ets:new(foodTable, [set, named_table]),
-  ets:insert(foodTable, {xyr, {0,0,1}}),
-  {ok, ETS}
+  {ok, {0,0,1}};
+init({X,Y,R}) ->
+  {ok, {X,Y,R}}
 .
 
 dummy(X,Y,R)->
-  gen_server:call(?MODULE,{playerMoved,1,R,X,Y})
+  gen_server:call(?MODULE,{playerMoved,1,X,Y,R})
 .
 
-handle_call({playerMoved,PlayerPid,PlayerRadius,PlayerX,PlayerY}, _From, Tab) ->
-  [{xyr,{X,Y,Radius}}|_] = ets:lookup(Tab,xyr),
-  %{xyr,{X,Y,Radius}} =
-  %Reply=ets:lookup(Tab,xyr),
+handle_call({playerMoved,PlayerPid,PlayerX,PlayerY,PlayerRadius}, _From, Tab) ->
+  {X,Y,Radius} = Tab,
   Distance = math:sqrt(math:pow(PlayerX-X,2)+math:pow(PlayerY-Y,2)),
-  Reply =Distance>PlayerRadius-Radius,
+  Reply = Distance=<abs(PlayerRadius-Radius),%true if dot has been eaten, false if dot hasn't been eaten
   {reply, Reply, Tab};
 
 handle_call(stop, _From, Tab) ->
