@@ -12,7 +12,7 @@
 -include("foodDB.hrl").
 
 %% API
--export([init_db/0,print_db/0,insert_food/2,remove_food/1,getFoods/0,insert_player/2,getPlayer/1]).
+-export([init_db/0,print_db/0,insert_food/2,remove_food/1,getFoods/0,insert_player/1,getPlayer/1,getPlayers/0,getPlayerById/1,grow_player_db/1]).
 
 init_db() ->
   mnesia:delete_table(food),
@@ -42,11 +42,10 @@ getPlayers()->
 .
 
 getPlayer(PID) ->
-  Fun = fun()->
-        Player = #player{pid = PID},
-        mnesia:select(employee, [{Player, [], []}])
-        end,
-  mnesia:transaction(Fun)
+  [{P,X,Y,R,ID,Name} || {player,P,X,Y,R,ID,Name} <- getPlayers(), P =:= PID]
+.
+getPlayerById(SearchId) ->
+  [{P,X,Y,R,ID,Name} || {player,P,X,Y,R,ID,Name} <- getPlayers(), ID =:= SearchId]
 .
 
 
@@ -58,13 +57,22 @@ insert_food(PID, {X,Y,R}) ->
   mnesia:transaction(Fun)
 .
 
-insert_player(PID, {X,Y,R,Score}) ->
+insert_player({PID,X,Y,R,ID,Name}) ->
   Fun = fun() ->
-    PlayerInfo = #player{pid = PID, x = X,y=Y,radius = R, score=Score},
+    PlayerInfo = #player{pid = PID, x = X,y=Y,radius = R,id=ID,name=Name},
     mnesia:write(PlayerInfo)
   end,
   mnesia:transaction(Fun)
 .
+
+grow_player_db({PID,Dr}) ->
+  F = fun() ->
+  [E] = mnesia:read(player,PID , write),
+  Radius = E#player.radius + Dr,
+  New = E#player{radius = Radius},
+  mnesia:write(New)
+  end,
+mnesia:transaction(F).
 
 remove_food(PID)->
   Fun = fun()->
